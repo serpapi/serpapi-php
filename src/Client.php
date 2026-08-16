@@ -3,7 +3,7 @@
 namespace SerpApi;
 
 class Client {
-  const VERSION = '1.0.0';
+  const VERSION = '1.1.0';
   const BASE_URL = 'https://serpapi.com';
   const DEFAULT_TIMEOUT = 120;
 
