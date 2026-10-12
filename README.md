@@ -43,7 +43,7 @@ Package available from [packagist](https://packagist.org/packages/serpapi/serpap
 composer require serpapi/serpapi-php
 ```
 
-## Simple Usage
+## Simple usage
 
 ```php
 require 'vendor/autoload.php';
