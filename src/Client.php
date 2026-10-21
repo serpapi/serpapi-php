@@ -23,16 +23,22 @@ class Client
   /** @var array<string, mixed> Search parameters merged into every request */
   private $params = [];
 
+  /** @var bool Keep one connection open and reuse it across requests */
+  private $persistent = true;
+
+  /** @var resource|\CurlHandle|null Shared cURL handle: a resource on PHP 7, a CurlHandle on PHP 8 */
+  private $handle;
+
   /**
    * Accepts positional arguments or, like the Ruby client, a single array
    * mixing configuration with default search parameters:
    *
    *   new Client(['api_key' => '...', 'engine' => 'google', 'hl' => 'en'])
    *
-   * `api_key`, `engine` and `timeout` configure the client and take
-   * precedence over the positional arguments. Every other key becomes a
-   * default search parameter, sent with every request unless overridden
-   * per call.
+   * `api_key`, `engine`, `timeout` and `persistent` configure the client
+   * and take precedence over the positional arguments. Every other key
+   * becomes a default search parameter, sent with every request unless
+   * overridden per call.
    *
    * @param string|array<string, mixed> $apiKey API key, or a configuration array
    * @param string $engine
@@ -54,6 +60,7 @@ class Client
     $apiKey = self::pull($params, 'api_key', $apiKey);
     $engine = self::pull($params, 'engine', $engine);
     $timeout = self::pull($params, 'timeout', $timeout);
+    $persistent = self::pull($params, 'persistent', true);
 
     if (empty($engine)) {
       throw new SerpApiException('engine must be present');
@@ -62,6 +69,7 @@ class Client
     $this->apiKey = (string) $apiKey;
     $this->engine = (string) $engine;
     $this->timeout = (int) $timeout;
+    $this->persistent = (bool) $persistent;
     $this->params = $params;
   }
 
@@ -131,15 +139,75 @@ class Client
   }
 
   /**
+   * Whether the client reuses one connection across requests.
+   */
+  public function isPersistent(): bool
+  {
+    return $this->persistent;
+  }
+
+  /**
+   * Close the shared connection. Safe to call more than once; the client
+   * stays usable and reconnects on the next request.
+   */
+  public function close(): void
+  {
+    if ($this->hasOpenHandle()) {
+      self::closeHandle($this->handle);
+    }
+
+    $this->handle = null;
+  }
+
+  public function __destruct()
+  {
+    $this->close();
+  }
+
+  /**
+   * A clone opens its own connection rather than sharing, and later
+   * closing, the original's.
+   */
+  public function __clone()
+  {
+    $this->handle = null;
+  }
+
+  /**
+   * cURL handles cannot be serialized; the connection is reopened on the
+   * first request after unserializing.
+   *
+   * @return array<string, mixed>
+   */
+  public function __serialize(): array
+  {
+    $data = get_object_vars($this);
+    unset($data['handle']);
+
+    return $data;
+  }
+
+  /**
+   * @param array<string, mixed> $data
+   */
+  public function __unserialize(array $data): void
+  {
+    foreach ($data as $property => $value) {
+      $this->{$property} = $value;
+    }
+  }
+
+  /**
    * Human readable representation with the API key masked.
    */
   public function inspect(): string
   {
     return sprintf(
-      '#<%s @engine=%s @timeout=%d @api_key=%s>',
+      '#<%s @engine=%s @timeout=%d @persistent=%s @api_key=%s>',
       static::class,
       $this->engine,
       $this->timeout,
+      $this->persistent ? 'true' : 'false',
       $this->maskedApiKey()
     );
   }
@@ -158,6 +226,7 @@ class Client
     return [
       'engine' => $this->engine,
       'timeout' => $this->timeout,
+      'persistent' => $this->persistent,
       'apiKey' => $this->maskedApiKey(),
       'params' => $this->params,
     ];
@@ -276,6 +345,10 @@ class Client
       throw new SerpApiException('api_key must be present');
     }
 
+    if (array_key_exists('persistent', $params)) {
+      throw new SerpApiException('persistent can only be set on the client');
+    }
+
     $timeout = (int) self::pull($params, 'timeout', $this->timeout);
 
     $query = $this->buildQuery($params, (string) $apiKey, $format);
@@ -359,10 +432,7 @@ class Client
    */
   protected function request(string $url, int $timeout): array
   {
-    $ch = curl_init();
-    if ($ch === false) {
-      throw new SerpApiException('Failed to initialize cURL handle');
-    }
+    $ch = $this->acquireHandle();
 
     try {
       $isConfigured = curl_setopt_array($ch, [
@@ -387,11 +457,56 @@ class Client
         'curl_error' => $curlError,
       ];
     } finally {
-      if (PHP_VERSION_ID < 80500) {
-        curl_close($ch);
+      if (!$this->persistent) {
+        self::closeHandle($ch);
       }
+    }
+  }
 
-      $ch = null;
+  /**
+   * The shared handle in persistent mode, otherwise a new one per request.
+   *
+   * @return resource|\CurlHandle
+   * @throws SerpApiException
+   */
+  private function acquireHandle()
+  {
+    if ($this->persistent && $this->hasOpenHandle()) {
+      return $this->handle;
+    }
+
+    $ch = curl_init();
+    if ($ch === false) {
+      throw new SerpApiException('Failed to initialize cURL handle');
+    }
+
+    if ($this->persistent) {
+      $this->handle = $ch;
+    }
+
+    return $ch;
+  }
+
+  /**
+   * False for a closed PHP 7 resource too, and for the integer a resource
+   * turns into when serialized on PHP 7.2 and 7.3.
+   *
+   * @phpstan-assert-if-true !null $this->handle
+   */
+  private function hasOpenHandle(): bool
+  {
+    return is_resource($this->handle) || $this->handle instanceof \CurlHandle;
+  }
+
+  /**
+   * @param resource|\CurlHandle $handle
+   */
+  private static function closeHandle($handle): void
+  {
+    // curl_close() is a no-op since PHP 8.0 and deprecated in 8.5; the
+    // handle is freed once nothing references it.
+    if (PHP_VERSION_ID < 80500) {
+      curl_close($handle);
     }
   }
 
