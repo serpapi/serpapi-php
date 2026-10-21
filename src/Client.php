@@ -320,6 +320,72 @@ class Client
   }
 
   /**
+   * Upload an image using the Image API.
+   *
+   * The returned `image_id` can be passed to Search API engines that accept
+   * uploaded images, such as Google Lens. Image IDs expire after 10 minutes.
+   *
+   * The upload carries the same parameters as any other request, including
+   * default search parameters set on the client, plus the image.
+   *
+   * @param string|resource $image Path to a JPG, PNG, or WebP file, or a readable stream;
+   *                               seekable streams are uploaded from the beginning
+   * @param array<string, mixed> $params Request parameters, such as `api_key` or `timeout`
+   * @throws SerpApiException
+   */
+  public function uploadImage($image, array $params = []): object
+  {
+    if (is_resource($image) && get_resource_type($image) === 'stream') {
+      $copy = self::copyToTempFile($image);
+
+      try {
+        $path = stream_get_meta_data($copy)['uri'];
+        return $this->post('/image', $params, ['image' => new \CURLFile($path, '', 'image')]);
+      } finally {
+        fclose($copy);
+      }
+    }
+
+    if (!is_string($image) || $image === '') {
+      throw new SerpApiException('image must be a file path or a stream');
+    }
+
+    if (!is_file($image) || !is_readable($image)) {
+      throw new SerpApiException("image is not a readable file: {$image}");
+    }
+
+    // Without a post name, cURL would send the full local path as the file name.
+    return $this->post('/image', $params, ['image' => new \CURLFile($image, '', basename($image))]);
+  }
+
+  /**
+   * cURL uploads files by path, and CURLStringFile requires PHP 8.1, so a
+   * stream is uploaded from a temporary copy that is deleted once closed.
+   *
+   * @param resource $stream
+   * @return resource
+   * @throws SerpApiException
+   */
+  private static function copyToTempFile($stream)
+  {
+    $copy = tmpfile();
+    if ($copy === false) {
+      throw new SerpApiException('Failed to create a temporary file for the image');
+    }
+
+    if (stream_get_meta_data($stream)['seekable']) {
+      rewind($stream);
+    }
+
+    if (stream_copy_to_stream($stream, $copy) === false || !fflush($copy)) {
+      fclose($copy);
+      throw new SerpApiException('Failed to read the image stream');
+    }
+
+    return $copy;
+  }
+
+  /**
    * Retrieve search result from the Search Archive API.
    *
    * @return object|string
@@ -348,6 +414,31 @@ class Client
    */
   private function get(string $endpoint, string $format = 'json', array $params = [], bool $assoc = false)
   {
+    return $this->send($endpoint, $format, $params, $assoc);
+  }
+
+  /**
+   * Send a multipart/form-data POST. The request parameters travel as form
+   * fields next to the files instead of in the URL.
+   *
+   * @param array<string, mixed> $params
+   * @param array<string, \CURLFile> $files
+   * @throws SerpApiException
+   */
+  private function post(string $endpoint, array $params, array $files): object
+  {
+    return $this->send($endpoint, 'json', $params, false, $files);
+  }
+
+  /**
+   * @param array<string, mixed> $params
+   * @param bool $assoc Decode JSON objects to associative arrays instead of stdClass
+   * @param array<string, \CURLFile>|null $files Files to POST, or null for a GET
+   * @return object|array<int|string, mixed>|string
+   * @throws SerpApiException
+   */
+  private function send(string $endpoint, string $format, array $params, bool $assoc, ?array $files = null)
+  {
     if (!in_array($format, ['json', 'html', 'md'], true)) {
       throw new SerpApiException("Unsupported format '$format'. Expected 'html', 'json', or 'md'.");
     }
@@ -367,9 +458,13 @@ class Client
 
     $query = $this->buildQuery($params, (string) $apiKey, $format);
 
-    $url = self::BASE_URL . $endpoint . '?' . http_build_query($query);
+    if ($files === null) {
+      $requestResult = $this->request(self::BASE_URL . $endpoint . '?' . http_build_query($query), $timeout);
+    } else {
+      $form = array_merge(self::formFields($query), $files);
+      $requestResult = $this->request(self::BASE_URL . $endpoint, $timeout, $form);
+    }
 
-    $requestResult = $this->request($url, $timeout);
     $response = $requestResult['response'];
     $httpCode = $requestResult['http_code'];
     $curlError = $requestResult['curl_error'];
@@ -457,26 +552,65 @@ class Client
   }
 
   /**
-   * Perform the HTTP GET request.
+   * Encode request parameters as form fields exactly as they would be in a
+   * query string. cURL would otherwise send false as an empty string and
+   * nested arrays as "Array".
+   *
+   * @param array<string, mixed> $query
+   * @return array<string, string>
+   */
+  private static function formFields(array $query): array
+  {
+    $fields = [];
+
+    foreach (explode('&', http_build_query($query)) as $pair) {
+      if ($pair === '') {
+        continue;
+      }
+
+      $parts = explode('=', $pair, 2);
+      $fields[urldecode($parts[0])] = urldecode($parts[1] ?? '');
+    }
+
+    return $fields;
+  }
+
+  /**
+   * Perform the HTTP request: a GET, or a multipart/form-data POST when
+   * form fields are given.
    *
    * @internal Seam for tests to observe requests without network access;
    *           not covered by the backwards compatibility promise.
    *
+   * @param array<string, string|\CURLFile>|null $form
    * @return array{response: string|false, http_code: int, curl_error: string}
    * @throws SerpApiException
    */
-  protected function request(string $url, int $timeout): array
+  protected function request(string $url, int $timeout, ?array $form = null): array
   {
     $ch = $this->acquireHandle();
 
     try {
-      $isConfigured = curl_setopt_array($ch, [
+      $options = [
         CURLOPT_URL => $url,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_USERAGENT => 'serpapi-php/' . self::VERSION,
         CURLOPT_FOLLOWLOCATION => true,
         CURLOPT_TIMEOUT => $timeout,
-      ]);
+        CURLOPT_HTTPHEADER => [],
+      ];
+
+      // A shared handle keeps the method and headers of the previous request.
+      if ($form === null) {
+        $options[CURLOPT_HTTPGET] = true;
+      } else {
+        $options[CURLOPT_POSTFIELDS] = $form;
+        // libcurl before 7.69 sends `Expect: 100-continue` with bodies over
+        // 1 KB. SerpApi does not answer it, stalling each upload for a second.
+        $options[CURLOPT_HTTPHEADER] = ['Expect:'];
+      }
+
+      $isConfigured = curl_setopt_array($ch, $options);
 
       if ($isConfigured === false) {
         throw new SerpApiException('Failed to configure cURL options: ' . curl_error($ch));
@@ -588,7 +722,7 @@ class Client
     $sanitizedSearchParams = $this->sanitizeSearchParams($searchParams);
 
     throw new SerpApiException(
-      'JSON parse error: ' . json_last_error_msg() . ' on get url: ' . self::BASE_URL . $endpoint,
+      'JSON parse error: ' . json_last_error_msg() . ' from url: ' . self::BASE_URL . $endpoint,
       null,
       $sanitizedSearchParams,
       $responseStatus,

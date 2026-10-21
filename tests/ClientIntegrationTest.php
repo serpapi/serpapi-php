@@ -67,4 +67,19 @@ class ClientIntegrationTest extends SerpApiTestCase
     $this->assertStringStartsWith('---', $archived_markdown);
     $this->assertStringContainsString('## Organic Results', $archived_markdown);
   }
+
+  public function testUploadImage()
+  {
+    $client = $this->serpApiClient();
+    $upload = $client->uploadImage(__DIR__ . '/fixtures/mona-lisa.jpg');
+    $this->assertNotEmpty($upload->image_id);
+
+    // The search is a GET on the same connection the upload was POSTed on.
+    $response = $client->search([
+      'engine' => 'google_lens',
+      'image_id' => $upload->image_id,
+    ]);
+    $this->assertEquals('Success', $response->search_metadata->status);
+    $this->assertResponseHasProperty($response, 'visual_matches');
+  }
 }

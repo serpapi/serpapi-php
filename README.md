@@ -17,6 +17,7 @@ The following services are provided:
  * [Location API](https://serpapi.com/locations-api)
  * [Search Archive API](https://serpapi.com/search-archive-api)
  * [Account API](https://serpapi.com/account-api)
+ * [Image API](https://serpapi.com/image-api)
 
 SerpApi provides a [script builder](https://serpapi.com/playground) to get you started quickly.
 
@@ -327,6 +328,8 @@ print_r($results->visual_matches);
 
  * source: [tests/ExampleSearchGoogleLensTest.php](https://github.com/serpapi/serpapi-php/blob/master/tests/ExampleSearchGoogleLensTest.php)
 see: [https://serpapi.com/google-lens-api](https://serpapi.com/google-lens-api)
+
+To search with a local image instead of a URL, upload it with the [Image API](#image-api).
 
 ### Search Google Play
 ```php
@@ -906,6 +909,27 @@ $client = new Client(getenv('SERPAPI_KEY'));
 $account = $client->account();
 print_r($account);
 ```
+
+### Image API
+
+Upload a local image, then search with its `image_id` on engines that accept uploaded images, such as Google Lens:
+
+```php
+use SerpApi\Client;
+
+$client = new Client(getenv('SERPAPI_KEY'));
+$upload = $client->uploadImage('path/to/image.jpg');
+
+$results = $client->search([
+  'engine' => 'google_lens',
+  'image_id' => $upload->image_id,
+]);
+print_r($results->visual_matches);
+```
+
+`uploadImage` also accepts an open stream, such as `fopen('path/to/image.jpg', 'rb')`. Images must be JPG, PNG, or WebP files up to 500 KB, and an `image_id` expires after 10 minutes.
+
+see: [https://serpapi.com/image-api](https://serpapi.com/image-api) and [https://serpapi.com/google-lens-upload-an-image](https://serpapi.com/google-lens-upload-an-image)
 
 ### HTML results
 

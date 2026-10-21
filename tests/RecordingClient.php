@@ -17,6 +17,12 @@ class RecordingClient extends Client
   /** @var array<int, int> */
   public $timeouts = [];
 
+  /** @var array<int, array<string, string|\CURLFile>|null> Form fields of each request, null for a GET */
+  public $forms = [];
+
+  /** @var array<int, string> Contents of uploaded files, read while the request was in flight */
+  public $uploads = [];
+
   /** @var string */
   private $body = '{"search_metadata":{"id":"abc123","status":"Success"}}';
 
@@ -31,10 +37,17 @@ class RecordingClient extends Client
     return $this;
   }
 
-  protected function request(string $url, int $timeout): array
+  protected function request(string $url, int $timeout, ?array $form = null): array
   {
     $this->urls[] = $url;
     $this->timeouts[] = $timeout;
+    $this->forms[] = $form;
+
+    foreach ($form ?? [] as $field) {
+      if ($field instanceof \CURLFile) {
+        $this->uploads[] = (string) file_get_contents($field->getFilename());
+      }
+    }
 
     return [
       'response' => $this->body,
@@ -61,5 +74,15 @@ class RecordingClient extends Client
     $url = (string) end($this->urls);
 
     return (string) parse_url($url, PHP_URL_PATH);
+  }
+
+  /**
+   * Form fields of the most recent request.
+   *
+   * @return array<string, string|\CURLFile>
+   */
+  public function lastForm(): array
+  {
+    return end($this->forms) ?: [];
   }
 }
