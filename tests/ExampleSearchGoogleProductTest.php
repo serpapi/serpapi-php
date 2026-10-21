@@ -6,25 +6,25 @@ class ExampleSearchGoogleProductTest extends SerpApiTestCase
 {
   public function testResultExists()
   {
-    // Product ids disappear when listings are removed, so take one from
-    // Google Shopping rather than hardcoding it.
+    // A page_token identifies a live product offer, so take one from
+    // Google Shopping rather than hardcoding one that will go stale.
     $shopping = $this->serpApiClient('google_shopping');
     $search = $shopping->search(['q' => 'coffee maker']);
 
-    $productId = null;
+    $pageToken = null;
     foreach ($search->shopping_results ?? [] as $product) {
-      if (isset($product->product_id)) {
-        $productId = $product->product_id;
+      if (isset($product->immersive_product_page_token)) {
+        $pageToken = $product->immersive_product_page_token;
         break;
       }
     }
 
-    if ($productId === null) {
-      $this->markTestSkipped('Google Shopping returned no product_id');
+    if ($pageToken === null) {
+      $this->markTestSkipped('Google Shopping returned no immersive_product_page_token');
     }
 
     $client = $this->serpApiClient('google_product');
-    $response = $client->search(['product_id' => $productId]);
+    $response = $client->search(['page_token' => $pageToken]);
     $this->assertResponseHasProperty(
       $response,
       'product_results',

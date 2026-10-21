@@ -22,8 +22,8 @@ class ExampleSearchGoogleFinanceTest extends SerpApiTestCase
     $response = $client->search($this->searchParams);
     $this->assertResponseHasProperty(
       $response,
-      'markets',
-      'Error on `google_finance` engine: no `markets`'
+      'summary',
+      'Error on `google_finance` engine: no `summary`'
     );
   }
 }

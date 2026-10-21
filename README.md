@@ -478,13 +478,13 @@ see: [https://serpapi.com/google-ai-mode-api](https://serpapi.com/google-ai-mode
 
 ### Search Google AI Overview
 
-The AI Overview API takes a `page_token` from a Google search. The token expires a minute after that search, so use it right away:
+The AI Overview API takes a `page_token` from a Google search. Google shows most AI Overviews inline, so the token is only present for some queries, and it expires a minute after the search:
 
 ```php
 use SerpApi\Client;
 
 $client = new Client(getenv('SERPAPI_KEY'));
-$search = $client->search(['q' => 'what is coffee']);
+$search = $client->search(['q' => 'how does art work in android']);
 
 if (isset($search->ai_overview->page_token)) {
   $results = $client->search([
@@ -501,7 +501,7 @@ see: [https://serpapi.com/google-ai-overview-api](https://serpapi.com/google-ai-
 
 ### Search Google Product
 
-The Product API takes a `product_id` from Google Shopping results:
+The Product API takes the `immersive_product_page_token` of a Google Shopping result, or a `product_id`:
 
 ```php
 use SerpApi\Client;
@@ -511,7 +511,7 @@ $shopping = $client->search(['engine' => 'google_shopping', 'q' => 'coffee maker
 
 $results = $client->search([
   'engine' => 'google_product',
-  'product_id' => $shopping->shopping_results[0]->product_id,
+  'page_token' => $shopping->shopping_results[0]->immersive_product_page_token,
 ]);
 
 print_r($results->product_results);
@@ -592,7 +592,7 @@ $results = $client->search([
   'q' => 'GOOG:NASDAQ',
 ]);
 
-print_r($results->markets);
+print_r($results->summary);
 ```
 
  * source: [tests/ExampleSearchGoogleFinanceTest.php](https://github.com/serpapi/serpapi-php/blob/master/tests/ExampleSearchGoogleFinanceTest.php)
@@ -638,10 +638,10 @@ use SerpApi\Client;
 $client = new Client(getenv('SERPAPI_KEY'));
 $results = $client->search([
   'engine' => 'google_reverse_image',
-  'image_url' => 'https://i.imgur.com/5bGzZi7.jpg',
+  'image_url' => 'https://i.imgur.com/HBrB8p0.png',
 ]);
 
-print_r($results->image_sizes);
+print_r($results->image_results);
 ```
 
  * source: [tests/ExampleSearchGoogleReverseImageTest.php](https://github.com/serpapi/serpapi-php/blob/master/tests/ExampleSearchGoogleReverseImageTest.php)

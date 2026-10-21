@@ -9,8 +9,10 @@ class ExampleSearchGoogleAiOverviewTest extends SerpApiTestCase
     // A page_token expires a minute after the Google search that returned
     // it, so fetch a fresh one and bypass the SerpApi cache.
     $google = $this->serpApiClient('google');
-    $search = $google->search(['q' => 'what is coffee', 'no_cache' => true]);
+    $search = $google->search(['q' => 'how does art work in android', 'no_cache' => true]);
 
+    // Google shows most AI Overviews inline. Only some need the extra
+    // request this engine makes, so skip when none is returned.
     $pageToken = $search->ai_overview->page_token ?? null;
     if ($pageToken === null) {
       $this->markTestSkipped('Google returned no AI Overview page_token for this query');

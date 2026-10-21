@@ -12,7 +12,7 @@ class ExampleSearchGoogleReverseImageTest extends SerpApiTestCase
     parent::setUp();
     $this->searchParams = [
       'engine' => 'google_reverse_image',
-      'image_url' => 'https://i.imgur.com/5bGzZi7.jpg',
+      'image_url' => 'https://i.imgur.com/HBrB8p0.png',
     ];
   }
 
@@ -22,8 +22,8 @@ class ExampleSearchGoogleReverseImageTest extends SerpApiTestCase
     $response = $client->search($this->searchParams);
     $this->assertResponseHasProperty(
       $response,
-      'image_sizes',
-      'Error on `google_reverse_image` engine: no `image_sizes`'
+      'image_results',
+      'Error on `google_reverse_image` engine: no `image_results`'
     );
   }
 }
