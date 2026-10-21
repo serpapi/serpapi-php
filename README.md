@@ -68,6 +68,14 @@ Use `search` for structured results decoded into a PHP object:
 
 ```php
 $results = $client->search(['q' => 'coffee']);
+echo $results->organic_results[0]->title;
+```
+
+Use `searchArray` for the same results as an associative array:
+
+```php
+$results = $client->searchArray(['q' => 'coffee']);
+echo $results['organic_results'][0]['title'];
 ```
 
 Use `md` for a token-efficient Markdown string optimized for LLMs and AI agents:
@@ -126,6 +134,64 @@ use SerpApi\Client;
 $client = new Client(getenv('SERPAPI_KEY'), 'google', 30);
 ```
 
+Or for a single request:
+
+```php
+$results = $client->search(['q' => 'coffee', 'timeout' => 10]);
+```
+
+### Default search parameters
+
+The constructor also accepts a single array. `api_key`, `engine`, `timeout`, and `persistent` configure the client; every other key becomes a default search parameter sent with every request:
+
+```php
+use SerpApi\Client;
+
+$client = new Client([
+  'api_key' => getenv('SERPAPI_KEY'),
+  'engine' => 'google',
+  'hl' => 'en',
+  'gl' => 'us',
+]);
+
+// q=coffee, hl=en, gl=us
+$results = $client->search(['q' => 'coffee']);
+
+// Per-call parameters take precedence: q=coffee, hl=fr, gl=us
+$results = $client->search(['q' => 'coffee', 'hl' => 'fr']);
+
+// null drops a default for one call: q=coffee, hl=en
+$results = $client->search(['q' => 'coffee', 'gl' => null]);
+```
+
+With positional arguments, pass default search parameters fourth: `new Client($apiKey, 'google', 30, ['hl' => 'en'])`.
+
+### Persistent connections
+
+The client keeps its connection to SerpApi open and reuses it, so only the first request pays for the DNS lookup and TLS handshake. The connection closes when the client is destroyed, or explicitly with `close()`:
+
+```php
+use SerpApi\Client;
+
+$client = new Client(getenv('SERPAPI_KEY'));
+$client->search(['q' => 'coffee']);
+$client->search(['q' => 'tea']); // reuses the connection
+$client->close();
+```
+
+A closed client reconnects on its next request. To open a new connection for every request instead, pass `'persistent' => false` in the configuration array. [`demo/demo_persistent.php`](demo/demo_persistent.php) compares the two.
+
+### Debugging
+
+`inspect()`, `var_dump()`, and `print_r()` mask the API key:
+
+```php
+echo $client->inspect();
+// #<SerpApi\Client @engine=google @timeout=120 @persistent=true @api_key=abcd****wxyz>
+```
+
+`var_export()` bypasses the mask and prints the key in clear text.
+
 ## Search API
 
 ### Search Google
@@ -171,7 +237,7 @@ $results = $client->search([
   'q' => 'coffee',
 ]);
 
-print_r($results->organic_results);
+print_r($results->suggestions);
 ```
 
  * source: [tests/ExampleSearchGoogleAutocompleteTest.php](https://github.com/serpapi/serpapi-php/blob/master/tests/ExampleSearchGoogleAutocompleteTest.php)
@@ -187,7 +253,7 @@ $results = $client->search([
   'q' => 'coffee',
 ]);
 
-print_r($results->organic_results);
+print_r($results->shopping_results);
 ```
 
  * source: [tests/ExampleSearchGoogleShoppingTest.php](https://github.com/serpapi/serpapi-php/blob/master/tests/ExampleSearchGoogleShoppingTest.php)
@@ -238,7 +304,7 @@ $results = $client->search([
   'location' => 'Austin, Texas, United States',
 ]);
 
-print_r($results->organic_results);
+print_r($results->events_results);
 ```
 
  * source: [tests/ExampleSearchGoogleEventsTest.php](https://github.com/serpapi/serpapi-php/blob/master/tests/ExampleSearchGoogleEventsTest.php)
@@ -295,6 +361,291 @@ print_r($results->local_ads);
 
  * source: [tests/ExampleSearchGoogleLocalServicesTest.php](https://github.com/serpapi/serpapi-php/blob/master/tests/ExampleSearchGoogleLocalServicesTest.php)
 see: [https://serpapi.com/google-local-services-api](https://serpapi.com/google-local-services-api)
+
+### Search Google Images
+```php
+use SerpApi\Client;
+
+$client = new Client(getenv('SERPAPI_KEY'));
+$results = $client->search([
+  'engine' => 'google_images',
+  'q' => 'coffee',
+]);
+
+print_r($results->images_results);
+```
+
+ * source: [tests/ExampleSearchGoogleImagesTest.php](https://github.com/serpapi/serpapi-php/blob/master/tests/ExampleSearchGoogleImagesTest.php)
+see: [https://serpapi.com/google-images-api](https://serpapi.com/google-images-api)
+
+### Search Google Images Light
+```php
+use SerpApi\Client;
+
+$client = new Client(getenv('SERPAPI_KEY'));
+$results = $client->search([
+  'engine' => 'google_images_light',
+  'q' => 'Coffee',
+]);
+
+print_r($results->images_results);
+```
+
+ * source: [tests/ExampleSearchGoogleImagesLightTest.php](https://github.com/serpapi/serpapi-php/blob/master/tests/ExampleSearchGoogleImagesLightTest.php)
+see: [https://serpapi.com/google-images-light-api](https://serpapi.com/google-images-light-api)
+
+### Search Google News
+```php
+use SerpApi\Client;
+
+$client = new Client(getenv('SERPAPI_KEY'));
+$results = $client->search([
+  'engine' => 'google_news',
+  'q' => 'pizza',
+  'gl' => 'us',
+  'hl' => 'en',
+]);
+
+print_r($results->news_results);
+```
+
+ * source: [tests/ExampleSearchGoogleNewsTest.php](https://github.com/serpapi/serpapi-php/blob/master/tests/ExampleSearchGoogleNewsTest.php)
+see: [https://serpapi.com/google-news-api](https://serpapi.com/google-news-api)
+
+### Search Google News Light
+```php
+use SerpApi\Client;
+
+$client = new Client(getenv('SERPAPI_KEY'));
+$results = $client->search([
+  'engine' => 'google_news_light',
+  'q' => 'pizza',
+]);
+
+print_r($results->news_results);
+```
+
+ * source: [tests/ExampleSearchGoogleNewsLightTest.php](https://github.com/serpapi/serpapi-php/blob/master/tests/ExampleSearchGoogleNewsLightTest.php)
+see: [https://serpapi.com/google-news-light-api](https://serpapi.com/google-news-light-api)
+
+### Search Google Videos
+```php
+use SerpApi\Client;
+
+$client = new Client(getenv('SERPAPI_KEY'));
+$results = $client->search([
+  'engine' => 'google_videos',
+  'q' => 'coffee',
+]);
+
+print_r($results->video_results);
+```
+
+ * source: [tests/ExampleSearchGoogleVideosTest.php](https://github.com/serpapi/serpapi-php/blob/master/tests/ExampleSearchGoogleVideosTest.php)
+see: [https://serpapi.com/google-videos-api](https://serpapi.com/google-videos-api)
+
+### Search Google Light
+```php
+use SerpApi\Client;
+
+$client = new Client(getenv('SERPAPI_KEY'));
+$results = $client->search([
+  'engine' => 'google_light',
+  'q' => 'coffee',
+]);
+
+print_r($results->organic_results);
+```
+
+ * source: [tests/ExampleSearchGoogleLightTest.php](https://github.com/serpapi/serpapi-php/blob/master/tests/ExampleSearchGoogleLightTest.php)
+see: [https://serpapi.com/google-light-api](https://serpapi.com/google-light-api)
+
+### Search Google AI Mode
+```php
+use SerpApi\Client;
+
+$client = new Client(getenv('SERPAPI_KEY'));
+$results = $client->search([
+  'engine' => 'google_ai_mode',
+  'q' => 'best coffee maker',
+]);
+
+print_r($results->reconstructed_markdown);
+```
+
+ * source: [tests/ExampleSearchGoogleAiModeTest.php](https://github.com/serpapi/serpapi-php/blob/master/tests/ExampleSearchGoogleAiModeTest.php)
+see: [https://serpapi.com/google-ai-mode-api](https://serpapi.com/google-ai-mode-api)
+
+### Search Google AI Overview
+
+The AI Overview API takes a `page_token` from a Google search. The token expires a minute after that search, so use it right away:
+
+```php
+use SerpApi\Client;
+
+$client = new Client(getenv('SERPAPI_KEY'));
+$search = $client->search(['q' => 'what is coffee']);
+
+if (isset($search->ai_overview->page_token)) {
+  $results = $client->search([
+    'engine' => 'google_ai_overview',
+    'page_token' => $search->ai_overview->page_token,
+  ]);
+
+  print_r($results->ai_overview);
+}
+```
+
+ * source: [tests/ExampleSearchGoogleAiOverviewTest.php](https://github.com/serpapi/serpapi-php/blob/master/tests/ExampleSearchGoogleAiOverviewTest.php)
+see: [https://serpapi.com/google-ai-overview-api](https://serpapi.com/google-ai-overview-api)
+
+### Search Google Product
+
+The Product API takes a `product_id` from Google Shopping results:
+
+```php
+use SerpApi\Client;
+
+$client = new Client(getenv('SERPAPI_KEY'));
+$shopping = $client->search(['engine' => 'google_shopping', 'q' => 'coffee maker']);
+
+$results = $client->search([
+  'engine' => 'google_product',
+  'product_id' => $shopping->shopping_results[0]->product_id,
+]);
+
+print_r($results->product_results);
+```
+
+ * source: [tests/ExampleSearchGoogleProductTest.php](https://github.com/serpapi/serpapi-php/blob/master/tests/ExampleSearchGoogleProductTest.php)
+see: [https://serpapi.com/google-product-api](https://serpapi.com/google-product-api)
+
+### Search Google Immersive Product
+
+The Immersive Product API takes the `immersive_product_page_token` of a Google Shopping result:
+
+```php
+use SerpApi\Client;
+
+$client = new Client(getenv('SERPAPI_KEY'));
+$shopping = $client->search(['engine' => 'google_shopping', 'q' => 'coffee maker']);
+
+$results = $client->search([
+  'engine' => 'google_immersive_product',
+  'page_token' => $shopping->shopping_results[0]->immersive_product_page_token,
+]);
+
+print_r($results->product_results);
+```
+
+ * source: [tests/ExampleSearchGoogleImmersiveProductTest.php](https://github.com/serpapi/serpapi-php/blob/master/tests/ExampleSearchGoogleImmersiveProductTest.php)
+see: [https://serpapi.com/google-immersive-product-api](https://serpapi.com/google-immersive-product-api)
+
+### Search Google Flights
+```php
+use SerpApi\Client;
+
+$client = new Client(getenv('SERPAPI_KEY'));
+$results = $client->search([
+  'engine' => 'google_flights',
+  'departure_id' => 'LAX',
+  'arrival_id' => 'AUS',
+  'outbound_date' => date('Y-m-d', strtotime('+30 days')),
+  'return_date' => date('Y-m-d', strtotime('+37 days')),
+]);
+
+print_r($results->best_flights);
+```
+
+ * source: [tests/ExampleSearchGoogleFlightsTest.php](https://github.com/serpapi/serpapi-php/blob/master/tests/ExampleSearchGoogleFlightsTest.php)
+see: [https://serpapi.com/google-flights-api](https://serpapi.com/google-flights-api)
+
+### Search Google Hotels
+```php
+use SerpApi\Client;
+
+$client = new Client(getenv('SERPAPI_KEY'));
+$results = $client->search([
+  'engine' => 'google_hotels',
+  'q' => 'Bali Resorts',
+  'check_in_date' => date('Y-m-d', strtotime('+30 days')),
+  'check_out_date' => date('Y-m-d', strtotime('+31 days')),
+  'adults' => '2',
+  'currency' => 'USD',
+  'gl' => 'us',
+  'hl' => 'en',
+]);
+
+print_r($results->properties);
+```
+
+ * source: [tests/ExampleSearchGoogleHotelsTest.php](https://github.com/serpapi/serpapi-php/blob/master/tests/ExampleSearchGoogleHotelsTest.php)
+see: [https://serpapi.com/google-hotels-api](https://serpapi.com/google-hotels-api)
+
+### Search Google Finance
+```php
+use SerpApi\Client;
+
+$client = new Client(getenv('SERPAPI_KEY'));
+$results = $client->search([
+  'engine' => 'google_finance',
+  'q' => 'GOOG:NASDAQ',
+]);
+
+print_r($results->markets);
+```
+
+ * source: [tests/ExampleSearchGoogleFinanceTest.php](https://github.com/serpapi/serpapi-php/blob/master/tests/ExampleSearchGoogleFinanceTest.php)
+see: [https://serpapi.com/google-finance-api](https://serpapi.com/google-finance-api)
+
+### Search Google Trends
+```php
+use SerpApi\Client;
+
+$client = new Client(getenv('SERPAPI_KEY'));
+$results = $client->search([
+  'engine' => 'google_trends',
+  'q' => 'coffee,milk,bread,pasta,steak',
+  'data_type' => 'TIMESERIES',
+]);
+
+print_r($results->interest_over_time);
+```
+
+ * source: [tests/ExampleSearchGoogleTrendsTest.php](https://github.com/serpapi/serpapi-php/blob/master/tests/ExampleSearchGoogleTrendsTest.php)
+see: [https://serpapi.com/google-trends-api](https://serpapi.com/google-trends-api)
+
+### Search Google Patents
+```php
+use SerpApi\Client;
+
+$client = new Client(getenv('SERPAPI_KEY'));
+$results = $client->search([
+  'engine' => 'google_patents',
+  'q' => '(Coffee)',
+]);
+
+print_r($results->organic_results);
+```
+
+ * source: [tests/ExampleSearchGooglePatentsTest.php](https://github.com/serpapi/serpapi-php/blob/master/tests/ExampleSearchGooglePatentsTest.php)
+see: [https://serpapi.com/google-patents-api](https://serpapi.com/google-patents-api)
+
+### Search Google Reverse Image
+```php
+use SerpApi\Client;
+
+$client = new Client(getenv('SERPAPI_KEY'));
+$results = $client->search([
+  'engine' => 'google_reverse_image',
+  'image_url' => 'https://i.imgur.com/5bGzZi7.jpg',
+]);
+
+print_r($results->image_sizes);
+```
+
+ * source: [tests/ExampleSearchGoogleReverseImageTest.php](https://github.com/serpapi/serpapi-php/blob/master/tests/ExampleSearchGoogleReverseImageTest.php)
+see: [https://serpapi.com/google-reverse-image](https://serpapi.com/google-reverse-image)
 
 ### Search Bing
 ```php
@@ -456,6 +807,55 @@ print_r($results->organic_results);
  * source: [tests/ExampleSearchDuckduckgoTest.php](https://github.com/serpapi/serpapi-php/blob/master/tests/ExampleSearchDuckduckgoTest.php)
 see: [https://serpapi.com/duckduckgo-search-api](https://serpapi.com/duckduckgo-search-api)
 
+### Search Amazon
+```php
+use SerpApi\Client;
+
+$client = new Client(getenv('SERPAPI_KEY'));
+$results = $client->search([
+  'engine' => 'amazon',
+  'k' => 'coffee',
+]);
+
+print_r($results->organic_results);
+```
+
+ * source: [tests/ExampleSearchAmazonTest.php](https://github.com/serpapi/serpapi-php/blob/master/tests/ExampleSearchAmazonTest.php)
+see: [https://serpapi.com/amazon-search-api](https://serpapi.com/amazon-search-api)
+
+### Search Yandex
+```php
+use SerpApi\Client;
+
+$client = new Client(getenv('SERPAPI_KEY'));
+$results = $client->search([
+  'engine' => 'yandex',
+  'text' => 'coffee',
+]);
+
+print_r($results->organic_results);
+```
+
+ * source: [tests/ExampleSearchYandexTest.php](https://github.com/serpapi/serpapi-php/blob/master/tests/ExampleSearchYandexTest.php)
+see: [https://serpapi.com/yandex-search-api](https://serpapi.com/yandex-search-api)
+
+### Search Yelp
+```php
+use SerpApi\Client;
+
+$client = new Client(getenv('SERPAPI_KEY'));
+$results = $client->search([
+  'engine' => 'yelp',
+  'find_desc' => 'Coffee',
+  'find_loc' => 'New York, NY, USA',
+]);
+
+print_r($results->organic_results);
+```
+
+ * source: [tests/ExampleSearchYelpTest.php](https://github.com/serpapi/serpapi-php/blob/master/tests/ExampleSearchYelpTest.php)
+see: [https://serpapi.com/yelp-search-api](https://serpapi.com/yelp-search-api)
+
 ## APIs supported
 
 ### Location API
@@ -559,6 +959,19 @@ Install dependencies and run the test suite:
 ```bash
 make install
 make test
+```
+
+Run the linter and static analysis:
+
+```bash
+make lint
+make analyse
+```
+
+The `demo/` directory holds runnable scripts, including a batch of async searches and a persistent connection benchmark:
+
+```bash
+make demo
 ```
 
 Contributions are welcome. Feel free to submit a pull request!
