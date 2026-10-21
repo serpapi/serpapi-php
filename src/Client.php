@@ -263,6 +263,18 @@ class Client
   }
 
   /**
+   * Run a search and return decoded JSON as an associative array.
+   *
+   * @param array<string, mixed> $params
+   * @return array<string, mixed>
+   * @throws SerpApiException
+   */
+  public function searchArray(array $params = []): array
+  {
+    return $this->get('/search', 'json', $params, true);
+  }
+
+  /**
    * Run a search and return Markdown optimized for LLMs and AI agents.
    *
    * @param array<string, mixed> $params
@@ -329,10 +341,11 @@ class Client
 
   /**
    * @param array<string, mixed> $params
+   * @param bool $assoc Decode JSON objects to associative arrays instead of stdClass
    * @return object|array<int|string, mixed>|string
    * @throws SerpApiException
    */
-  private function get(string $endpoint, string $format = 'json', array $params = [])
+  private function get(string $endpoint, string $format = 'json', array $params = [], bool $assoc = false)
   {
     if (!in_array($format, ['json', 'html', 'md'], true)) {
       throw new SerpApiException("Unsupported format '$format'. Expected 'html', 'json', or 'md'.");
@@ -372,15 +385,16 @@ class Client
       $this->raiseHttpError($httpCode, $endpoint, $query, null, null, $format);
     }
 
-    $decoded = json_decode($response);
+    $decoded = json_decode($response, $assoc);
     if ($decoded === null && json_last_error() !== JSON_ERROR_NONE) {
       $this->raiseParserError($httpCode, $endpoint, $query);
     }
 
-    $serpApiError = (is_object($decoded) && isset($decoded->error)) ? $decoded->error : null;
-    $searchId = (is_object($decoded) && isset($decoded->search_metadata->id))
-      ? (string) $decoded->search_metadata->id
-      : null;
+    $error = self::dig($decoded, 'error');
+    $serpApiError = is_scalar($error) ? (string) $error : null;
+
+    $id = self::dig(self::dig($decoded, 'search_metadata'), 'id');
+    $searchId = is_scalar($id) ? (string) $id : null;
 
     if ($httpCode === 200) {
       if ($serpApiError !== null) {
@@ -391,6 +405,26 @@ class Client
     }
 
     $this->raiseHttpError($httpCode, $endpoint, $query, $serpApiError, $searchId, 'json');
+  }
+
+  /**
+   * Read a key from decoded JSON, whether it was decoded to objects or
+   * associative arrays.
+   *
+   * @param mixed $data
+   * @return mixed
+   */
+  private static function dig($data, string $key)
+  {
+    if (is_array($data)) {
+      return $data[$key] ?? null;
+    }
+
+    if (is_object($data)) {
+      return $data->{$key} ?? null;
+    }
+
+    return null;
   }
 
   /**
