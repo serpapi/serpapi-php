@@ -20,21 +20,65 @@ class Client
   /** @var int */
   private $timeout;
 
+  /** @var array<string, mixed> Search parameters merged into every request */
+  private $params = [];
+
   /**
-   * @param string $apiKey
+   * Accepts positional arguments or, like the Ruby client, a single array
+   * mixing configuration with default search parameters:
+   *
+   *   new Client(['api_key' => '...', 'engine' => 'google', 'hl' => 'en'])
+   *
+   * `api_key`, `engine` and `timeout` configure the client and take
+   * precedence over the positional arguments. Every other key becomes a
+   * default search parameter, sent with every request unless overridden
+   * per call.
+   *
+   * @param string|array<string, mixed> $apiKey API key, or a configuration array
    * @param string $engine
    * @param int $timeout Request timeout in seconds
+   * @param array<string, mixed> $params Default search parameters and configuration
    * @throws SerpApiException
    */
-  public function __construct(string $apiKey = '', string $engine = 'google', int $timeout = self::DEFAULT_TIMEOUT)
-  {
+  public function __construct(
+    $apiKey = '',
+    string $engine = 'google',
+    int $timeout = self::DEFAULT_TIMEOUT,
+    array $params = []
+  ) {
+    if (is_array($apiKey)) {
+      $params = array_merge($apiKey, $params);
+      $apiKey = '';
+    }
+
+    $apiKey = self::pull($params, 'api_key', $apiKey);
+    $engine = self::pull($params, 'engine', $engine);
+    $timeout = self::pull($params, 'timeout', $timeout);
+
     if (empty($engine)) {
       throw new SerpApiException('engine must be present');
     }
 
-    $this->apiKey = $apiKey;
-    $this->engine = $engine;
-    $this->timeout = $timeout;
+    $this->apiKey = (string) $apiKey;
+    $this->engine = (string) $engine;
+    $this->timeout = (int) $timeout;
+    $this->params = $params;
+  }
+
+  /**
+   * Remove a key from an options array and return its value, or the
+   * default when the key is absent or null.
+   *
+   * @param array<string, mixed> $options
+   * @param mixed $default
+   * @return mixed
+   */
+  private static function pull(array &$options, string $key, $default)
+  {
+    $value = $options[$key] ?? $default;
+    unset($options[$key]);
+
+    return $value;
   }
 
   /**
@@ -66,6 +110,24 @@ class Client
   public function getEngine(): string
   {
     return $this->engine;
+  }
+
+  /**
+   * Get the request timeout in seconds.
+   */
+  public function getTimeout(): int
+  {
+    return $this->timeout;
+  }
+
+  /**
+   * Get the default search parameters sent with every request.
+   *
+   * @return array<string, mixed>
+   */
+  public function getParams(): array
+  {
+    return $this->params;
   }
 
   /**
@@ -162,11 +224,13 @@ class Client
       throw new SerpApiException('api_key must be present');
     }
 
+    $timeout = (int) self::pull($params, 'timeout', $this->timeout);
+
     $query = $this->buildQuery($params, (string) $apiKey, $format);
 
     $url = self::BASE_URL . $endpoint . '?' . http_build_query($query);
 
-    $requestResult = $this->request($url, $this->timeout);
+    $requestResult = $this->request($url, $timeout);
     $response = $requestResult['response'];
     $httpCode = $requestResult['http_code'];
     $curlError = $requestResult['curl_error'];
@@ -221,7 +285,12 @@ class Client
       $query['api_key'] = $apiKey;
     }
 
-    $query = array_merge($query, $params);
+    // A null value drops a default search parameter for a single call.
+    $overrides = array_filter(array_merge($this->params, $params), static function ($value) {
+      return $value !== null;
+    });
+
+    $query = array_merge($query, $overrides);
     $query['output'] = $format;
 
     return $query;
