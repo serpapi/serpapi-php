@@ -8,6 +8,9 @@ class Client
   public const BASE_URL = 'https://serpapi.com';
   public const DEFAULT_TIMEOUT = 120;
 
+  /** Client identifier reported to SerpApi in the `source` parameter. */
+  public const SOURCE = 'serpapi-php:' . self::VERSION;
+
   /** @var string */
   private $apiKey;
 
@@ -159,21 +162,11 @@ class Client
       throw new SerpApiException('api_key must be present');
     }
 
-    $defaultQuery = [
-      'engine' => $this->engine,
-      'source' => 'php',
-    ];
-
-    if (!empty($apiKey)) {
-      $defaultQuery['api_key'] = $apiKey;
-    }
-
-    $query = array_merge($defaultQuery, $params);
-    $query['output'] = $format;
+    $query = $this->buildQuery($params, (string) $apiKey, $format);
 
     $url = self::BASE_URL . $endpoint . '?' . http_build_query($query);
 
-    $requestResult = $this->request($url);
+    $requestResult = $this->request($url, $this->timeout);
     $response = $requestResult['response'];
     $httpCode = $requestResult['http_code'];
     $curlError = $requestResult['curl_error'];
@@ -212,10 +205,38 @@ class Client
   }
 
   /**
+   * Assemble the query string parameters for a request.
+   *
+   * @param array<string, mixed> $params
+   * @return array<string, mixed>
+   */
+  private function buildQuery(array $params, string $apiKey, string $format): array
+  {
+    $query = [
+      'engine' => $this->engine,
+      'source' => self::SOURCE,
+    ];
+
+    if (!empty($apiKey)) {
+      $query['api_key'] = $apiKey;
+    }
+
+    $query = array_merge($query, $params);
+    $query['output'] = $format;
+
+    return $query;
+  }
+
+  /**
+   * Perform the HTTP GET request.
+   *
+   * @internal Seam for tests to observe requests without network access;
+   *           not covered by the backwards compatibility promise.
+   *
    * @return array{response: string|false, http_code: int, curl_error: string}
    * @throws SerpApiException
    */
-  private function request(string $url): array
+  protected function request(string $url, int $timeout): array
   {
     $ch = curl_init();
     if ($ch === false) {
@@ -228,7 +249,7 @@ class Client
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_USERAGENT => 'serpapi-php/' . self::VERSION,
         CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_TIMEOUT => $this->timeout,
+        CURLOPT_TIMEOUT => $timeout,
       ]);
 
       if ($isConfigured === false) {
