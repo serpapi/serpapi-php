@@ -25,6 +25,9 @@ jobs:
     - name: Run linter
       run: composer run-script lint
 
+    - name: Run static analysis
+      run: composer run-script analyse
+
   run:
     runs-on: ubuntu-latest
     strategy:

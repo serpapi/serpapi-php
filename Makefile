@@ -1,7 +1,7 @@
-.PHONY: all clean install lint test readme demo
+.PHONY: all clean install lint analyse test readme demo
 
 # Default target
-all: install readme lint test
+all: install readme lint analyse test
 
 # Clean up the project
 clean:
@@ -14,6 +14,10 @@ install:
 # Run PSR12 lint
 lint:
 	vendor/bin/phpcs
+
+# Run static analysis
+analyse:
+	vendor/bin/phpstan analyse --no-progress --memory-limit=512M
 
 # Run the tests
 test:

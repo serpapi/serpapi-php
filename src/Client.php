@@ -323,6 +323,7 @@ class Client
    * Retrieve search result from the Search Archive API.
    *
    * @return object|string
+   * @phpstan-return ($format is 'json' ? object : string)
    * @throws SerpApiException
    */
   public function searchArchive(string $searchId, string $format = 'json')
