@@ -4,6 +4,7 @@
 
   <file>src</file>
   <file>tests</file>
+  <file>demo</file>
 
   <arg name="colors"/>
   <arg value="sp"/>
