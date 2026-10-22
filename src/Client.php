@@ -377,7 +377,8 @@ class Client
       rewind($stream);
     }
 
-    if (stream_copy_to_stream($stream, $copy) === false || !fflush($copy)) {
+    $copied = stream_copy_to_stream($stream, $copy);
+    if ($copied === false || $copied === 0 || !fflush($copy)) {
       fclose($copy);
       throw new SerpApiException('Failed to read the image stream');
     }
@@ -563,7 +564,7 @@ class Client
   {
     $fields = [];
 
-    foreach (explode('&', http_build_query($query)) as $pair) {
+    foreach (explode('&', http_build_query($query, '', '&')) as $pair) {
       if ($pair === '') {
         continue;
       }

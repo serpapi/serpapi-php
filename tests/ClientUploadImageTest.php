@@ -137,6 +137,19 @@ class ClientUploadImageTest extends SerpApiTestCase
     }
   }
 
+  public function testUploadImageRejectsEmptyStream()
+  {
+    $client = new RecordingClient('secret');
+
+    try {
+      $client->uploadImage(fopen('php://memory', 'w+b'));
+      $this->fail('Expected SerpApiException');
+    } catch (SerpApiException $e) {
+      $this->assertEquals('Failed to read the image stream', $e->getMessage());
+      $this->assertEmpty($client->urls, 'no request must be sent');
+    }
+  }
+
   public function testUploadImageRejectsOtherArguments()
   {
     $client = new RecordingClient('secret');
