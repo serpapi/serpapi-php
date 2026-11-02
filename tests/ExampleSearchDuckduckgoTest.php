@@ -2,21 +2,28 @@
 
 namespace SerpApi\Tests;
 
-class ExampleSearchDuckduckgoTest extends SerpApiTestCase {
+class ExampleSearchDuckduckgoTest extends SerpApiTestCase
+{
   /** @var array<string, string> */
-  private $search_params;
+  private $searchParams;
 
-  protected function setUp(): void {
+  protected function setUp(): void
+  {
     parent::setUp();
-    $this->search_params = [
+    $this->searchParams = [
       'engine' => 'duckduckgo',
       'q' => 'coffee',
     ];
   }
 
-  public function test_result_exists() {
+  public function testResultExists()
+  {
     $client = $this->serpApiClient();
-    $response = $client->search($this->search_params);
-    $this->assertResponseHasProperty($response, 'organic_results', 'Error on `duckduckgo` engine: no `organic_results`');
+    $response = $client->search($this->searchParams);
+    $this->assertResponseHasProperty(
+      $response,
+      'organic_results',
+      'Error on `duckduckgo` engine: no `organic_results`'
+    );
   }
 }

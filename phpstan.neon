@@ -4,14 +4,11 @@ parameters:
     - src
     - demo
 
-  # composer.json promises PHP 7.2 through 8.5. Analysis runs against 8.x,
-  # where curl_init() returns a CurlHandle. The 7.x resource form of the same
-  # handle is exercised by the CI matrix instead.
+  # The library supports PHP 7.2 through 8.5. Analysis runs against PHP 8.1;
+  # the 7.x resource form is exercised by the CI matrix.
   phpVersion: 80100
 
   ignoreErrors:
-    # The cURL handle is a resource on PHP 7 and a CurlHandle on PHP 8. Both
-    # arms of the union are reachable across the supported range, but PHPStan
-    # analyses a single version and so only ever sees one of them assigned.
+    # PHPStan only sees one arm of the cURL handle union for a single version.
     - identifier: property.unusedType
       path: src/Client.php

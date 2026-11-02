@@ -2,21 +2,28 @@
 
 namespace SerpApi\Tests;
 
-class ExampleSearchGoogleFinanceTest extends SerpApiTestCase {
+class ExampleSearchGoogleFinanceTest extends SerpApiTestCase
+{
   /** @var array<string, string> */
-  private $search_params;
+  private $searchParams;
 
-  protected function setUp(): void {
+  protected function setUp(): void
+  {
     parent::setUp();
-    $this->search_params = [
+    $this->searchParams = [
       'engine' => 'google_finance',
       'q' => 'GOOG:NASDAQ',
     ];
   }
 
-  public function test_result_exists() {
+  public function testResultExists()
+  {
     $client = $this->serpApiClient();
-    $response = $client->search($this->search_params);
-    $this->assertResponseHasProperty($response, 'markets', 'Error on `google_finance` engine: no `markets`');
+    $response = $client->search($this->searchParams);
+    $this->assertResponseHasProperty(
+      $response,
+      'summary',
+      'Error on `google_finance` engine: no `summary`'
+    );
   }
 }

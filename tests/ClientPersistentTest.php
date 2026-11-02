@@ -3,35 +3,29 @@
 namespace SerpApi\Tests;
 
 use SerpApi\Client;
+use SerpApi\SerpApiException;
 
 /**
- * Connection reuse. The handle lifecycle is exercised directly so these
- * tests need neither an API key nor network access.
+ * Connection reuse, exercised through the real cURL code path against a
+ * local file:// URL, so these tests need neither an API key nor network.
  */
-class ClientPersistentTest extends SerpApiTestCase {
-  protected function requiresApiKey(): bool {
+class ClientPersistentTest extends SerpApiTestCase
+{
+  private const MARKER = 'class LocalFileClient';
+
+  protected function requiresApiKey(): bool
+  {
     return false;
-  }
-
-  /**
-   * @return resource|\CurlHandle
-   */
-  private function acquire(Client $client) {
-    $method = new \ReflectionMethod(Client::class, 'acquire_handle');
-
-    if (PHP_VERSION_ID < 80100) {
-      $method->setAccessible(true);
-    }
-
-    return $method->invoke($client);
   }
 
   /**
    * @return resource|\CurlHandle|null
    */
-  private function handle(Client $client) {
+  private function handle(Client $client)
+  {
     $property = new \ReflectionProperty(Client::class, 'handle');
 
+    // Required before PHP 8.1, and deprecated as a no-op since 8.5.
     if (PHP_VERSION_ID < 80100) {
       $property->setAccessible(true);
     }
@@ -39,78 +33,114 @@ class ClientPersistentTest extends SerpApiTestCase {
     return $property->getValue($client);
   }
 
-  public function test_persistent_is_enabled_by_default() {
-    $this->assertTrue((new Client('secret'))->is_persistent());
+  public function testPersistentIsEnabledByDefault()
+  {
+    $this->assertTrue((new Client('secret'))->isPersistent());
   }
 
-  public function test_persistent_can_be_disabled() {
-    $client = new Client(['api_key' => 'secret', 'persistent' => false]);
-    $this->assertFalse($client->is_persistent());
+  public function testPersistentCanBeDisabled()
+  {
+    $this->assertFalse((new Client(['api_key' => 'secret', 'persistent' => false]))->isPersistent());
+    $this->assertFalse((new Client('secret', 'google', 120, ['persistent' => false]))->isPersistent());
   }
 
-  public function test_persistent_is_not_sent_as_a_search_parameter() {
-    $client = new Client(['api_key' => 'secret', 'persistent' => false]);
-    $this->assertArrayNotHasKey('persistent', $client->get_params());
+  public function testPersistentIsNotSentAsASearchParameter()
+  {
+    $client = new RecordingClient(['api_key' => 'secret', 'persistent' => false]);
+    $client->search(['q' => 'coffee']);
+
+    $this->assertArrayNotHasKey('persistent', $client->getParams());
+    $this->assertArrayNotHasKey('persistent', $client->lastQuery());
   }
 
-  public function test_no_connection_is_opened_before_the_first_request() {
-    $this->assertNull($this->handle(new Client('secret')));
+  public function testPerCallPersistentIsRejected()
+  {
+    $this->expectException(SerpApiException::class);
+    $this->expectExceptionMessage('persistent can only be set on the client');
+    (new RecordingClient('secret'))->search(['persistent' => false]);
   }
 
-  public function test_persistent_client_reuses_the_same_handle() {
-    $client = new Client('secret');
+  public function testInspectReportsPersistentMode()
+  {
+    $this->assertStringContainsString('@persistent=true', (new Client('secret'))->inspect());
+    $this->assertStringContainsString('@persistent=false', (new Client(['persistent' => false]))->inspect());
+  }
 
-    $first = $this->acquire($client);
-    $second = $this->acquire($client);
+  public function testRequestsWorkThroughTheSharedHandle()
+  {
+    $client = new LocalFileClient('secret');
 
-    $this->assertSame($first, $second);
+    $this->assertStringContainsString(self::MARKER, $client->fetch());
+    $this->assertStringContainsString(self::MARKER, $client->fetch());
+  }
+
+  public function testNoConnectionIsOpenedBeforeTheFirstRequest()
+  {
+    $this->assertNull($this->handle(new LocalFileClient('secret')));
+  }
+
+  public function testPersistentClientReusesTheSameHandle()
+  {
+    $client = new LocalFileClient('secret');
+
+    $client->fetch();
+    $first = $this->handle($client);
+    $client->fetch();
+
+    $this->assertNotNull($first);
     $this->assertSame($first, $this->handle($client));
   }
 
-  public function test_non_persistent_client_uses_a_fresh_handle_each_time() {
-    $client = new Client(['api_key' => 'secret', 'persistent' => false]);
+  public function testNonPersistentClientKeepsNoHandle()
+  {
+    $client = new LocalFileClient(['api_key' => 'secret', 'persistent' => false]);
 
-    $first = $this->acquire($client);
-    $second = $this->acquire($client);
-
-    $this->assertNotSame($first, $second);
-    $this->assertNull($this->handle($client), 'non persistent handles must not be retained');
-  }
-
-  public function test_close_releases_the_shared_handle() {
-    $client = new Client('secret');
-    $this->acquire($client);
-
-    $client->close();
-
+    $this->assertStringContainsString(self::MARKER, $client->fetch());
     $this->assertNull($this->handle($client));
   }
 
-  public function test_close_is_idempotent() {
-    $client = new Client('secret');
-    $this->acquire($client);
+  public function testCloseIsIdempotentAndTheClientReconnects()
+  {
+    $client = new LocalFileClient('secret');
+    $client->fetch();
+    $first = $this->handle($client);
 
     $client->close();
     $client->close();
-
     $this->assertNull($this->handle($client));
+
+    $client->fetch();
+    $this->assertNotNull($this->handle($client));
+    $this->assertNotSame($first, $this->handle($client));
   }
 
-  public function test_client_reconnects_after_close() {
-    $client = new Client('secret');
-    $first = $this->acquire($client);
-    $client->close();
+  public function testCloneOpensItsOwnConnection()
+  {
+    $client = new LocalFileClient('secret');
+    $client->fetch();
+    $original = $this->handle($client);
 
-    $second = $this->acquire($client);
+    $copy = clone $client;
+    $this->assertNull($this->handle($copy));
 
-    $this->assertNotSame($first, $second);
-    $this->assertSame($second, $this->handle($client));
+    $copy->fetch();
+    unset($copy);
+
+    $this->assertSame($original, $this->handle($client));
+    $this->assertStringContainsString(self::MARKER, $client->fetch());
   }
 
-  public function test_inspect_reports_persistent_mode() {
-    $this->assertStringContainsString('@persistent=true', (new Client('secret'))->inspect());
+  public function testClientCanBeSerializedAfterARequest()
+  {
+    $client = new LocalFileClient(['api_key' => 'secret', 'engine' => 'bing', 'hl' => 'en']);
+    $client->fetch();
 
-    $client = new Client(['api_key' => 'secret', 'persistent' => false]);
-    $this->assertStringContainsString('@persistent=false', $client->inspect());
+    $restored = unserialize(serialize($client));
+
+    $this->assertInstanceOf(LocalFileClient::class, $restored);
+    $this->assertEquals('bing', $restored->getEngine());
+    $this->assertEquals('secret', $restored->getApiKey());
+    $this->assertEquals(['hl' => 'en'], $restored->getParams());
+    $this->assertStringContainsString(self::MARKER, $restored->fetch());
   }
 }

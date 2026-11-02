@@ -2,21 +2,28 @@
 
 namespace SerpApi\Tests;
 
-class ExampleSearchGoogleNewsLightTest extends SerpApiTestCase {
+class ExampleSearchGoogleNewsLightTest extends SerpApiTestCase
+{
   /** @var array<string, string> */
-  private $search_params;
+  private $searchParams;
 
-  protected function setUp(): void {
+  protected function setUp(): void
+  {
     parent::setUp();
-    $this->search_params = [
+    $this->searchParams = [
       'engine' => 'google_news_light',
       'q' => 'pizza',
     ];
   }
 
-  public function test_result_exists() {
+  public function testResultExists()
+  {
     $client = $this->serpApiClient();
-    $response = $client->search($this->search_params);
-    $this->assertResponseHasProperty($response, 'news_results', 'Error on `google_news_light` engine: no `news_results`');
+    $response = $client->search($this->searchParams);
+    $this->assertResponseHasProperty(
+      $response,
+      'news_results',
+      'Error on `google_news_light` engine: no `news_results`'
+    );
   }
 }

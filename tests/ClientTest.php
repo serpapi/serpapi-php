@@ -5,60 +5,70 @@ namespace SerpApi\Tests;
 use SerpApi\Client;
 use SerpApi\SerpApiException;
 
-class ClientTest extends SerpApiTestCase {
-  protected function requiresApiKey(): bool {
+class ClientTest extends SerpApiTestCase
+{
+  protected function requiresApiKey(): bool
+  {
     return false;
   }
 
-  public function test_throws_when_api_key_missing() {
+  public function testThrowsWhenApiKeyMissing()
+  {
     $this->expectException(SerpApiException::class);
     $this->expectExceptionMessage('api_key must be present');
     $client = new Client();
     $client->search(['q' => 'Coffee']);
   }
 
-  public function test_throws_when_engine_empty() {
+  public function testThrowsWhenEngineEmpty()
+  {
     $this->expectException(SerpApiException::class);
     $this->expectExceptionMessage('engine must be present');
     new Client('test_key', '');
   }
 
-  public function test_throws_when_api_key_invalid() {
+  public function testThrowsWhenApiKeyInvalid()
+  {
     $this->expectException(SerpApiException::class);
     $this->expectExceptionMessageMatches('/Invalid API key/i');
     $client = new Client('not_valid_key');
     $client->search(['q' => 'Coffee']);
   }
 
-  public function test_search_archive_throws_when_id_empty() {
+  public function testSearchArchiveThrowsWhenIdEmpty()
+  {
     $this->expectException(SerpApiException::class);
     $this->expectExceptionMessage('search_id must be present');
     $client = new Client('test_key');
-    $client->search_archive('');
+    $client->searchArchive('');
   }
 
-  public function test_search_archive_throws_when_format_invalid() {
+  public function testSearchArchiveThrowsWhenFormatInvalid()
+  {
     $this->expectException(SerpApiException::class);
-    $this->expectExceptionMessage('format must be json or html');
+    $this->expectExceptionMessage('format must be json, html, or md');
     $client = new Client('test_key');
-    $client->search_archive('abc', 'xml');
+    $client->searchArchive('abc', 'xml');
   }
 
-  public function test_set_api_key_throws_when_empty() {
+  public function testSetApiKeyThrowsWhenEmpty()
+  {
     $this->expectException(SerpApiException::class);
     $this->expectExceptionMessage('api_key must have a value');
     $client = new Client('test_key');
-    $client->set_api_key('');
+    $client->setApiKey('');
   }
 
-  public function test_set_api_key_updates_value() {
+  public function testSetApiKeyUpdatesValue()
+  {
     $client = new Client('initial_key');
-    $client->set_api_key('updated_key');
-    $this->assertEquals('updated_key', $client->get_api_key());
+    $client->setApiKey('updated_key');
+    $this->assertEquals('updated_key', $client->getApiKey());
   }
 
-  public function test_get_engine_returns_engine() {
+  public function testGetEngineReturnsEngine()
+  {
     $client = new Client('test_key', 'bing');
-    $this->assertEquals('bing', $client->get_engine());
+    $this->assertEquals('bing', $client->getEngine());
   }
 }

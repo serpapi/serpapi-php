@@ -2,21 +2,28 @@
 
 namespace SerpApi\Tests;
 
-class ExampleSearchGoogleAutocompleteTest extends SerpApiTestCase {
+class ExampleSearchGoogleAutocompleteTest extends SerpApiTestCase
+{
   /** @var array<string, string> */
-  private $search_params;
+  private $searchParams;
 
-  protected function setUp(): void {
+  protected function setUp(): void
+  {
     parent::setUp();
-    $this->search_params = [
+    $this->searchParams = [
       'engine' => 'google_autocomplete',
       'q' => 'coffee',
     ];
   }
 
-  public function test_result_exists() {
+  public function testResultExists()
+  {
     $client = $this->serpApiClient();
-    $response = $client->search($this->search_params);
-    $this->assertResponseHasProperty($response, 'suggestions', 'Error on `google_autocomplete` engine: no `suggestions`');
+    $response = $client->search($this->searchParams);
+    $this->assertResponseHasProperty(
+      $response,
+      'suggestions',
+      'Error on `google_autocomplete` engine: no `suggestions`'
+    );
   }
 }

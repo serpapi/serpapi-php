@@ -3,74 +3,65 @@
 /**
  * Non-blocking searches at scale.
  *
- * With `async => true` the backend accepts the search and returns
- * immediately instead of waiting for the search engine. Submitting a batch
- * first and collecting the results afterwards through the Search Archive API
- * is much faster than running the searches one after another.
+ * With `async => true` SerpApi accepts a search and returns right away
+ * instead of waiting for the results. Submitting a batch first and then
+ * collecting the results through the Search Archive API is much faster
+ * than running the searches one after another.
  *
  * Usage:
- *  export SERPAPI_KEY="your secret key"
- *  php demo/demo_async.php
+ *   export SERPAPI_KEY="your secret key"
+ *   php demo/demo_async.php
  */
 
 require __DIR__ . '/../vendor/autoload.php';
 
 use SerpApi\Client;
+use SerpApi\SerpApiException;
 
-/**
- * Read search_metadata off a decoded response, failing loudly on anything
- * unexpected rather than on a property access further down.
- *
- * @param object|array<string, mixed>|string $response
- */
-function search_metadata($response): object {
-  if (!is_object($response) || !isset($response->search_metadata)) {
-    throw new RuntimeException('response carries no search_metadata');
-  }
-
-  return $response->search_metadata;
-}
-
-$api_key = getenv('SERPAPI_KEY');
-if (empty($api_key)) {
+$apiKey = getenv('SERPAPI_KEY');
+if (empty($apiKey)) {
   fwrite(STDERR, "SERPAPI_KEY environment variable must be set\n");
   exit(1);
 }
 
-$companies = ['meta', 'amazon', 'apple', 'netflix', 'google'];
+// One client, and so one open connection, for the whole batch.
+$client = new Client(['api_key' => $apiKey, 'engine' => 'google']);
 
-// Persistent mode keeps a single connection open for the whole batch.
-$client = new Client([
-  'engine'     => 'google',
-  'api_key'    => $api_key,
-  'async'      => true,
-  'persistent' => true,
-]);
-
-// Submit every search without waiting for its results.
+// `async` is passed per call rather than set on the client, where it would
+// also be sent with every Search Archive request below.
 $pending = [];
-foreach ($companies as $company) {
-  $result = $client->search(['q' => $company]);
-  $pending[search_metadata($result)->id] = $company;
+foreach (['meta', 'amazon', 'apple', 'netflix', 'google'] as $company) {
+  $submitted = $client->search(['q' => $company, 'async' => true]);
+  $pending[$submitted->search_metadata->id] = $company;
   echo "submitted: {$company}\n";
 }
 
-echo "\ncollecting ", count($pending), " results\n";
+echo "\ncollecting " . count($pending) . " results\n";
 
-// Collect the results, putting back the searches still in progress.
-$deadline = time() + 60;
-while (!empty($pending) && time() < $deadline) {
-  foreach ($pending as $search_id => $company) {
-    $archived = $client->search_archive((string) $search_id);
-    $status = search_metadata($archived)->status;
+$deadline = time() + 120;
+while (!empty($pending)) {
+  if (time() >= $deadline) {
+    fwrite(STDERR, 'timed out waiting for: ' . implode(', ', $pending) . "\n");
+    exit(1);
+  }
 
-    if ($status === 'Success' || $status === 'Cached') {
-      $count = is_object($archived) && isset($archived->organic_results)
-        ? count((array) $archived->organic_results)
-        : 0;
-      printf("  %-8s %s (%d organic results)\n", $company, $status, $count);
-      unset($pending[$search_id]);
+  foreach ($pending as $searchId => $company) {
+    try {
+      $archived = $client->searchArchive((string) $searchId);
+    } catch (SerpApiException $e) {
+      // A failed search is archived with an `error`, which the client raises.
+      fwrite(STDERR, "{$company} failed: {$e->getMessage()}\n");
+      exit(1);
     }
+
+    // Queued or Processing: check again on the next pass.
+    if ($archived->search_metadata->status !== 'Success') {
+      continue;
+    }
+
+    $count = count($archived->organic_results ?? []);
+    printf("  %-8s %d organic results\n", $company, $count);
+    unset($pending[$searchId]);
   }
 
   if (!empty($pending)) {
@@ -79,11 +70,4 @@ while (!empty($pending) && time() < $deadline) {
 }
 
 $client->close();
-
-if (!empty($pending)) {
-  fwrite(STDERR, 'timed out waiting for: ' . implode(', ', $pending) . "\n");
-  exit(1);
-}
-
 echo "done\n";
-exit(0);

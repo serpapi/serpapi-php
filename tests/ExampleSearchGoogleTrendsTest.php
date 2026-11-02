@@ -2,22 +2,29 @@
 
 namespace SerpApi\Tests;
 
-class ExampleSearchGoogleTrendsTest extends SerpApiTestCase {
+class ExampleSearchGoogleTrendsTest extends SerpApiTestCase
+{
   /** @var array<string, string> */
-  private $search_params;
+  private $searchParams;
 
-  protected function setUp(): void {
+  protected function setUp(): void
+  {
     parent::setUp();
-    $this->search_params = [
+    $this->searchParams = [
       'engine' => 'google_trends',
       'q' => 'coffee,milk,bread,pasta,steak',
       'data_type' => 'TIMESERIES',
     ];
   }
 
-  public function test_result_exists() {
+  public function testResultExists()
+  {
     $client = $this->serpApiClient();
-    $response = $client->search($this->search_params);
-    $this->assertResponseHasProperty($response, 'interest_over_time', 'Error on `google_trends` engine: no `interest_over_time`');
+    $response = $client->search($this->searchParams);
+    $this->assertResponseHasProperty(
+      $response,
+      'interest_over_time',
+      'Error on `google_trends` engine: no `interest_over_time`'
+    );
   }
 }

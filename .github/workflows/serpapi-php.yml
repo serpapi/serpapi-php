@@ -1,4 +1,4 @@
-name: PHP build
+name: serpapi-php
 on:
   push:
     branches: [ master ]
@@ -6,6 +6,28 @@ on:
     branches: [ master ]
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v6
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.5'
+        extensions: mbstring, intl, curl
+        tools: composer
+
+    - name: Install dependencies
+      run: composer install --prefer-dist --no-progress
+
+    - name: Run linter
+      run: composer run-script lint
+
+    - name: Run static analysis
+      run: composer run-script analyse
+
   run:
     runs-on: ubuntu-latest
     strategy:
@@ -13,7 +35,7 @@ jobs:
         php-versions: ['7.2', '7.3', '7.4', '8.0', '8.1', '8.2', '8.3', '8.4', '8.5']
     steps:
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Setup PHP
       uses: shivammathur/setup-php@v2
@@ -40,11 +62,6 @@ jobs:
 
     - name: Install dependencies
       run: composer install --prefer-dist --no-progress
-
-    - name: Run static analysis
-      # PHPStan needs PHP 7.4+; the library itself still supports 7.2.
-      if: matrix.php-versions >= '7.4'
-      run: composer run-script analyse
 
     - name: Run test suite
       run: composer run-script test

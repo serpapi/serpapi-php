@@ -1,5 +1,7 @@
+.PHONY: all clean install lint analyse test readme demo
+
 # Default target
-all: install readme analyse test
+all: install readme lint analyse test
 
 # Clean up the project
 clean:
@@ -8,6 +10,10 @@ clean:
 # Install the necessary libraries and dependencies
 install:
 	composer install --prefer-dist --no-progress
+
+# Run PSR12 lint
+lint:
+	vendor/bin/phpcs
 
 # Run static analysis
 analyse:
@@ -21,9 +27,9 @@ test:
 readme:
 	erb -T '-' README.md.erb > README.md
 
-# Run the demo scripts end to end
+# Run the demo scripts against the live API (requires SERPAPI_KEY)
 demo:
 	@for file in demo/*.php; do \
-		echo "running demo: $$file"; \
+		echo "running $$file"; \
 		php $$file || exit 1; \
 	done

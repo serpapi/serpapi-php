@@ -4,51 +4,51 @@ namespace SerpApi\Tests;
 
 use SerpApi\Client;
 
-class ClientInspectTest extends SerpApiTestCase {
-  const LONG_KEY = 'abcd1234secret5678wxyz';
+class ClientInspectTest extends SerpApiTestCase
+{
+  private const LONG_KEY = 'abcd1234secret5678wxyz';
 
-  protected function requiresApiKey(): bool {
+  protected function requiresApiKey(): bool
+  {
     return false;
   }
 
-  public function test_inspect_does_not_expose_the_api_key() {
+  public function testInspectDoesNotExposeTheApiKey()
+  {
     $client = new Client(self::LONG_KEY);
     $this->assertStringNotContainsString(self::LONG_KEY, $client->inspect());
   }
 
-  public function test_inspect_shows_first_and_last_four_characters() {
+  public function testInspectShowsFirstAndLastFourCharacters()
+  {
     $client = new Client(self::LONG_KEY);
-    $this->assertStringContainsString('abcd****wxyz', $client->inspect());
+    $this->assertStringContainsString('@api_key=abcd****wxyz', $client->inspect());
   }
 
-  public function test_inspect_reports_engine_and_timeout() {
-    $client = new Client(self::LONG_KEY, 'bing', 30);
-    $inspect = $client->inspect();
+  public function testInspectReportsEngineAndTimeout()
+  {
+    $inspect = (new Client(self::LONG_KEY, 'bing', 30))->inspect();
 
     $this->assertStringContainsString('@engine=bing', $inspect);
     $this->assertStringContainsString('@timeout=30', $inspect);
   }
 
-  public function test_short_api_key_is_fully_masked() {
-    $client = new Client('abcdef');
-    $inspect = $client->inspect();
+  public function testShortApiKeyIsFullyMasked()
+  {
+    $inspect = (new Client('abcdefgh'))->inspect();
 
-    $this->assertStringNotContainsString('abcdef', $inspect);
-    $this->assertStringContainsString('****', $inspect);
+    $this->assertStringNotContainsString('abcd', $inspect);
+    $this->assertStringContainsString('@api_key=****', $inspect);
   }
 
-  public function test_eight_character_api_key_is_fully_masked() {
-    $client = new Client('abcdefgh');
-    $this->assertStringNotContainsString('abcdefgh', $client->inspect());
+  public function testMissingApiKeyRendersAsEmpty()
+  {
+    $this->assertStringEndsWith('@api_key=>', (new Client())->inspect());
   }
 
-  public function test_missing_api_key_renders_as_empty() {
-    $client = new Client();
-    $this->assertStringContainsString('@api_key=>', $client->inspect());
-  }
-
-  public function test_var_dump_does_not_expose_the_api_key() {
-    $client = new Client(self::LONG_KEY);
+  public function testVarDumpDoesNotExposeTheApiKey()
+  {
+    $client = new Client(['api_key' => self::LONG_KEY, 'hl' => 'en']);
 
     ob_start();
     var_dump($client);
@@ -56,13 +56,14 @@ class ClientInspectTest extends SerpApiTestCase {
 
     $this->assertStringNotContainsString(self::LONG_KEY, $dump);
     $this->assertStringContainsString('abcd****wxyz', $dump);
+    $this->assertStringContainsString("'hl'", $dump);
   }
 
-  public function test_debug_info_does_not_expose_the_api_key_in_default_params() {
-    $client = new Client(['api_key' => self::LONG_KEY, 'hl' => 'en']);
-    $info = $client->__debugInfo();
+  public function testPrintRDoesNotExposeTheApiKey()
+  {
+    $dump = print_r(new Client(self::LONG_KEY), true);
 
-    $this->assertEquals('abcd****wxyz', $info['api_key']);
-    $this->assertEquals(['hl' => 'en'], $info['params']);
+    $this->assertStringNotContainsString(self::LONG_KEY, $dump);
+    $this->assertStringContainsString('abcd****wxyz', $dump);
   }
 }

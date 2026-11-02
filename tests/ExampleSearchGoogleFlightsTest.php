@@ -2,28 +2,34 @@
 
 namespace SerpApi\Tests;
 
-class ExampleSearchGoogleFlightsTest extends SerpApiTestCase {
+class ExampleSearchGoogleFlightsTest extends SerpApiTestCase
+{
   /** @var array<string, string> */
-  private $search_params;
+  private $searchParams;
 
-  protected function setUp(): void {
+  protected function setUp(): void
+  {
     parent::setUp();
 
-    // Dates are computed rather than hardcoded so the test does not expire.
-    $this->search_params = [
+    // Dates are relative to today so the example never asks for a past flight.
+    $this->searchParams = [
       'engine' => 'google_flights',
-      'departure_id' => 'PEK',
+      'departure_id' => 'LAX',
       'arrival_id' => 'AUS',
       'outbound_date' => date('Y-m-d', strtotime('+30 days')),
       'return_date' => date('Y-m-d', strtotime('+37 days')),
-      'currency' => 'USD',
-      'hl' => 'en',
     ];
   }
 
-  public function test_result_exists() {
+  public function testResultExists()
+  {
     $client = $this->serpApiClient();
-    $response = $client->search($this->search_params);
-    $this->assertResponseHasProperty($response, 'best_flights', 'Error on `google_flights` engine: no `best_flights`');
+    $response = $client->search($this->searchParams);
+
+    // Google only ranks some routes, so either list counts as a result.
+    $this->assertNotNull(
+      $response->best_flights ?? $response->other_flights ?? null,
+      'Error on `google_flights` engine: no `best_flights` or `other_flights`'
+    );
   }
 }

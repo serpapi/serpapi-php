@@ -2,35 +2,40 @@
 
 namespace SerpApi\Tests;
 
-class EnginesTest extends SerpApiTestCase {
+class EnginesTest extends SerpApiTestCase
+{
   /** @var array<string, mixed> */
-  private $search_params;
+  private $searchParams;
 
-  protected function setUp(): void {
+  protected function setUp(): void
+  {
     parent::setUp();
-    $this->search_params = [
+    $this->searchParams = [
       'q' => 'Coffee',
       'location' => 'Austin,Texas',
     ];
   }
 
-  public function test_bing_search() {
+  public function testBingSearch()
+  {
     $client = $this->serpApiClient('bing');
-    $response = $client->search($this->search_params);
+    $response = $client->search($this->searchParams);
     $this->assertEquals('Success', $response->search_metadata->status);
     $this->assertResponseHasProperty($response, 'organic_results');
     $this->assertNotEmpty($response->organic_results);
   }
 
-  public function test_baidu_search() {
+  public function testBaiduSearch()
+  {
     $client = $this->serpApiClient('baidu');
-    $response = $client->search($this->search_params);
+    $response = $client->search($this->searchParams);
     $this->assertEquals('Success', $response->search_metadata->status);
     $this->assertResponseHasProperty($response, 'organic_results');
     $this->assertNotEmpty($response->organic_results);
   }
 
-  public function test_yahoo_search() {
+  public function testYahooSearch()
+  {
     $client = $this->serpApiClient('yahoo');
     $response = $client->search(['p' => 'Coffee']);
     $this->assertEquals('Success', $response->search_metadata->status);
@@ -38,7 +43,8 @@ class EnginesTest extends SerpApiTestCase {
     $this->assertNotEmpty($response->organic_results);
   }
 
-  public function test_yandex_search() {
+  public function testYandexSearch()
+  {
     $client = $this->serpApiClient('yandex');
     $response = $client->search(['text' => 'Coffee']);
     $this->assertEquals('Success', $response->search_metadata->status);
@@ -46,7 +52,8 @@ class EnginesTest extends SerpApiTestCase {
     $this->assertNotEmpty($response->organic_results);
   }
 
-  public function test_ebay_search() {
+  public function testEbaySearch()
+  {
     $client = $this->serpApiClient('ebay');
     $response = $client->search([
       '_nkw' => 'Coffee',
@@ -57,7 +64,8 @@ class EnginesTest extends SerpApiTestCase {
     $this->assertNotEmpty($response->organic_results);
   }
 
-  public function test_youtube_search() {
+  public function testYoutubeSearch()
+  {
     $client = $this->serpApiClient('youtube');
     $response = $client->search(['search_query' => 'Coffee']);
     $this->assertEquals('Success', $response->search_metadata->status);

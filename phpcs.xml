@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<ruleset name="SerpApi PHP">
+  <description>PSR-12 with 2-space indentation</description>
+
+  <file>src</file>
+  <file>tests</file>
+  <file>demo</file>
+
+  <arg name="colors"/>
+  <arg value="sp"/>
+
+  <rule ref="PSR12">
+    <!-- Project uses 2-space indent instead of PSR-12's 4 spaces. -->
+    <exclude name="Generic.WhiteSpace.ScopeIndent"/>
+    <exclude name="PSR2.Methods.FunctionCallSignature.Indent"/>
+    <exclude name="PSR2.Methods.FunctionCallSignature.CloseBracketLine"/>
+    <exclude name="Squiz.Functions.MultiLineFunctionDeclaration.Indent"/>
+    <exclude name="PEAR.Functions.FunctionDeclaration.Indent"/>
+  </rule>
+
+  <rule ref="Generic.WhiteSpace.ScopeIndent">
+    <properties>
+      <property name="indent" value="2"/>
+      <property name="exact" value="true"/>
+    </properties>
+  </rule>
+</ruleset>

@@ -1,0 +1,129 @@
+name: Release
+
+on:
+  push:
+    tags: ['v**']
+  workflow_dispatch:
+    inputs:
+      allow_example_test_failures:
+        description: 'Publish even if the live example tests fail (use only when a SerpApi engine is down)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  verify-tag:
+    name: Verify release tag
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure ref is a tag
+        if: github.ref_type != 'tag'
+        run: |
+          echo "Release must run against a tag, got '${{ github.ref }}'" >&2
+          exit 1
+
+      - name: Check out the tagged revision
+        uses: actions/checkout@v6
+
+      - name: Setup PHP for tag verification
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.5"
+          coverage: none
+
+      - name: Verify release tag matches the package version
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_version="$(php -r 'require "src/Client.php"; echo (new ReflectionClass(SerpApi\Client::class))->getConstant("VERSION");')"
+          if [[ "${GITHUB_REF_NAME}" != "v${package_version}" ]]; then
+            echo "Release tag ${GITHUB_REF_NAME} must equal v${package_version}." >&2
+            exit 1
+          fi
+
+  test:
+    name: Test with PHP ${{ matrix.php-version }}
+    needs: verify-tag
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version: ["7.2", "7.3", "7.4", "8.0", "8.1", "8.2", "8.3", "8.4", "8.5"]
+
+    steps:
+      - name: Check out the tagged revision
+        uses: actions/checkout@v6
+
+      - name: Setup PHP ${{ matrix.php-version }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          extensions: mbstring, intl, curl
+          ini-values: post_max_size=256M, max_execution_time=180
+          coverage: none
+          tools: composer
+
+      - name: Validate composer.json
+        run: composer validate
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress
+
+      - name: Lint
+        if: matrix.php-version == '8.5'
+        run: composer run-script lint
+
+      - name: Test
+        run: composer run-script test -- --filter '/^(?!.*ExampleSearch)/'
+        env:
+          API_KEY: ${{ secrets.API_KEY }}
+
+      - name: Run example tests
+        if: matrix.php-version == '8.5'
+        continue-on-error: ${{ inputs.allow_example_test_failures == true }}
+        run: composer run-script test -- --filter ExampleSearch
+        env:
+          API_KEY: ${{ secrets.API_KEY }}
+
+  publish:
+    name: Publish release
+    needs: [verify-tag, test]
+    runs-on: ubuntu-latest
+    environment:
+      name: packagist
+      url: https://packagist.org/packages/serpapi/serpapi-php
+    permissions:
+      contents: write
+    env:
+      PACKAGIST_USERNAME: ${{ secrets.PACKAGIST_USERNAME }}
+      PACKAGIST_TOKEN: ${{ secrets.PACKAGIST_TOKEN }}
+
+    steps:
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" --generate-notes \
+            || echo "GitHub Release ${GITHUB_REF_NAME} already exists"
+
+      - name: Trigger a Packagist crawl
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${PACKAGIST_USERNAME}" || -z "${PACKAGIST_TOKEN}" ]]; then
+            echo "Add PACKAGIST_USERNAME and PACKAGIST_TOKEN as GitHub Actions secrets on the packagist environment." >&2
+            exit 1
+          fi
+
+          curl -sS --fail-with-body -X POST \
+            -H 'Content-Type: application/json' \
+            -H 'User-Agent: serpapi-php-release (mailto:contact@serpapi.com)' \
+            -d "{\"repository\":{\"url\":\"https://github.com/${GITHUB_REPOSITORY}\"}}" \
+            "https://packagist.org/api/update-package?username=${PACKAGIST_USERNAME}&apiToken=${PACKAGIST_TOKEN}"

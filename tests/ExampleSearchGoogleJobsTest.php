@@ -2,21 +2,24 @@
 
 namespace SerpApi\Tests;
 
-class ExampleSearchGoogleJobsTest extends SerpApiTestCase {
+class ExampleSearchGoogleJobsTest extends SerpApiTestCase
+{
   /** @var array<string, string> */
-  private $search_params;
+  private $searchParams;
 
-  protected function setUp(): void {
+  protected function setUp(): void
+  {
     parent::setUp();
-    $this->search_params = [
+    $this->searchParams = [
       'engine' => 'google_jobs',
       'q' => 'coffee',
     ];
   }
 
-  public function test_result_exists() {
+  public function testResultExists()
+  {
     $client = $this->serpApiClient();
-    $response = $client->search($this->search_params);
+    $response = $client->search($this->searchParams);
     $this->assertResponseHasProperty($response, 'jobs_results', 'Error on `google_jobs` engine: no `jobs_results`');
   }
 }

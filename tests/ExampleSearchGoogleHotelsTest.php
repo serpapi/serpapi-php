@@ -2,15 +2,17 @@
 
 namespace SerpApi\Tests;
 
-class ExampleSearchGoogleHotelsTest extends SerpApiTestCase {
+class ExampleSearchGoogleHotelsTest extends SerpApiTestCase
+{
   /** @var array<string, string> */
-  private $search_params;
+  private $searchParams;
 
-  protected function setUp(): void {
+  protected function setUp(): void
+  {
     parent::setUp();
 
-    // Dates are computed rather than hardcoded so the test does not expire.
-    $this->search_params = [
+    // Dates are relative to today so the example never asks for a past stay.
+    $this->searchParams = [
       'engine' => 'google_hotels',
       'q' => 'Bali Resorts',
       'check_in_date' => date('Y-m-d', strtotime('+30 days')),
@@ -22,9 +24,14 @@ class ExampleSearchGoogleHotelsTest extends SerpApiTestCase {
     ];
   }
 
-  public function test_result_exists() {
+  public function testResultExists()
+  {
     $client = $this->serpApiClient();
-    $response = $client->search($this->search_params);
-    $this->assertResponseHasProperty($response, 'properties', 'Error on `google_hotels` engine: no `properties`');
+    $response = $client->search($this->searchParams);
+    $this->assertResponseHasProperty(
+      $response,
+      'properties',
+      'Error on `google_hotels` engine: no `properties`'
+    );
   }
 }

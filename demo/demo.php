@@ -3,28 +3,25 @@
 /**
  * Basic search.
  *
- * Prerequisites:
- *  - composer install
- *  - export SERPAPI_KEY="your secret key"  (get one at https://serpapi.com/dashboard)
- *
  * Usage:
- *  php demo/demo.php
+ *   composer install
+ *   export SERPAPI_KEY="your secret key"  # https://serpapi.com/manage-api-key
+ *   php demo/demo.php
  */
 
 require __DIR__ . '/../vendor/autoload.php';
 
 use SerpApi\Client;
 
-$api_key = getenv('SERPAPI_KEY');
-if (empty($api_key)) {
+$apiKey = getenv('SERPAPI_KEY');
+if (empty($apiKey)) {
   fwrite(STDERR, "SERPAPI_KEY environment variable must be set\n");
   exit(1);
 }
 
-// Client initialization with default parameters.
 $client = new Client([
-  'engine'  => 'google',
-  'api_key' => $api_key,
+  'api_key' => $apiKey,
+  'engine' => 'google',
 ]);
 
 $results = $client->search(['q' => 'coffee']);
@@ -40,4 +37,3 @@ foreach ($results->organic_results as $result) {
 
 $client->close();
 echo "done\n";
-exit(0);
